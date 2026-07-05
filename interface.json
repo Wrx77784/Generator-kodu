@@ -4,5 +4,11 @@
   "messageStore": "messages.jsonl",
   "topic": "basic-message-bus",
   "host": "127.0.0.1",
-  "port": 5001
+  "port": 5001,
+  "schema": [
+    {"name": "team", "type": "string"},
+    {"name": "probability", "type": "float"},
+    {"name": "source", "type": "string"},
+    {"name": "timestamp", "type": "string"}
+  ]
 }

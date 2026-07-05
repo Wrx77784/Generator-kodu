@@ -1,14 +1,100 @@
-# Generated message handler
+# Generated message handler with binary serialization
+import struct
+
 class {{ class_name }}:
     def __init__(self, name):
         self.name = name
 
-    def send(self, payload, receiver="{{ default_receiver }}"):
-        return {
-            "sender": self.name,
-            "receiver": receiver,
-            "payload": payload,
-        }
+    def make_message(self, receiver="{{ default_receiver }}", **fields):
+        msg = {"sender": self.name, "receiver": receiver}
+{% for f in schema %}
+        msg["{{f.name}}"] = fields.get("{{f.name}}", "")
+{% endfor %}
+        return msg
+
+    def serialize(self, message):
+        parts = []
+        # sender + receiver first
+        for key in ("sender", "receiver"):
+            b = str(message.get(key, "")).encode("utf-8")
+            parts.append(struct.pack("!I", len(b)))
+            parts.append(b)
+
+        # schema fields
+{% for f in schema %}
+        # field: {{f.name}} ({{f.type}})
+        if "{{f.name}}" in message:
+            val = message.get("{{f.name}}")
+            {% if f.type == 'string' %}
+            b = str(val).encode("utf-8")
+            parts.append(struct.pack("!I", len(b)))
+            parts.append(b)
+            {% elif f.type == 'float' %}
+            parts.append(struct.pack("!d", float(val)))
+            {% elif f.type == 'int' %}
+            parts.append(struct.pack("!i", int(val)))
+            {% elif f.type == 'bool' %}
+            parts.append(struct.pack("!?", bool(val)))
+            {% else %}
+            b = str(val).encode("utf-8")
+            parts.append(struct.pack("!I", len(b)))
+            parts.append(b)
+            {% endif %}
+        else:
+            # missing field: encode empty for strings, zeros for numeric
+            {% if f.type == 'string' %}
+            parts.append(struct.pack("!I", 0))
+            {% elif f.type == 'float' %}
+            parts.append(struct.pack("!d", 0.0))
+            {% elif f.type == 'int' %}
+            parts.append(struct.pack("!i", 0))
+            {% elif f.type == 'bool' %}
+            parts.append(struct.pack("!?", False))
+            {% else %}
+            parts.append(struct.pack("!I", 0))
+            {% endif %}
+        
+{% endfor %}
+        return b"".join(parts)
+
+    def deserialize(self, data: bytes):
+        import io
+        buf = io.BytesIO(data)
+
+        def read_len_prefixed():
+            ln = buf.read(4)
+            if len(ln) < 4:
+                return ""
+            (l,) = struct.unpack("!I", ln)
+            return buf.read(l).decode("utf-8")
+
+        sender = read_len_prefixed()
+        receiver = read_len_prefixed()
+        msg = {"sender": sender, "receiver": receiver}
+
+{% for f in schema %}
+        # read field {{f.name}} ({{f.type}})
+        {% if f.type == 'string' %}
+        msg["{{f.name}}"] = read_len_prefixed()
+        {% elif f.type == 'float' %}
+        raw = buf.read(8)
+        msg["{{f.name}}"] = struct.unpack("!d", raw)[0] if len(raw) == 8 else 0.0
+        {% elif f.type == 'int' %}
+        raw = buf.read(4)
+        msg["{{f.name}}"] = struct.unpack("!i", raw)[0] if len(raw) == 4 else 0
+        {% elif f.type == 'bool' %}
+        raw = buf.read(1)
+        msg["{{f.name}}"] = struct.unpack("!\?", raw)[0] if len(raw) == 1 else False
+        {% else %}
+        msg["{{f.name}}"] = read_len_prefixed()
+        {% endif %}
+
+{% endfor %}
+        return msg
 
     def receive(self, message):
-        return f"{self.name} received: {message['payload']} from {message['sender']}"
+        parts = []
+{% for f in schema %}
+        parts.append(f"{{'{{'}}message['{{f.name}}']{{'}}'}}")
+{% endfor %}
+        return f"{self.name} received: " + ", ".join(parts)

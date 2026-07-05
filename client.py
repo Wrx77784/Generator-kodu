@@ -6,10 +6,29 @@ from pathlib import Path
 
 
 def send_message(payload, receiver, sender, host, port):
-    message = {"sender": sender, "receiver": receiver, "payload": payload}
-    with socket.create_connection((host, port), timeout=5) as sock:
-        sock.sendall(json.dumps(message).encode("utf-8"))
-    print(f"Sender sent: {payload} -> {receiver}")
+    # Prefer generated binary handler if available
+    base_dir = Path(__file__).resolve().parent
+    gen_path = base_dir / "generated_message_handler.py"
+    if gen_path.exists():
+        from generated_message_handler import MessageHandler
+        handler = MessageHandler(sender)
+        import time
+        message = handler.make_message(
+            receiver=receiver,
+            team=payload,
+            probability=0.0,
+            source="client",
+            timestamp=str(int(time.time())),
+        )
+        data = handler.serialize(message)
+        with socket.create_connection((host, port), timeout=5) as sock:
+            sock.sendall(data)
+        print(f"Sender sent (binary): {payload} -> {receiver}")
+    else:
+        message = {"sender": sender, "receiver": receiver, "payload": payload}
+        with socket.create_connection((host, port), timeout=5) as sock:
+            sock.sendall(json.dumps(message).encode("utf-8"))
+        print(f"Sender sent (json): {payload} -> {receiver}")
 
 
 def main():

@@ -14,12 +14,20 @@ def handle_client(conn, addr):
             if not chunk:
                 break
             data += chunk
-
         if not data:
             return
 
-        message = json.loads(data.decode("utf-8"))
-        print(f"Receiver got: {message['payload']} from {message['sender']} ({addr[0]}:{addr[1]})")
+        # Try binary deserialization using generated handler, otherwise fallback to JSON
+        base_dir = Path(__file__).resolve().parent
+        gen_path = base_dir / "generated_message_handler.py"
+        if gen_path.exists():
+            from generated_message_handler import MessageHandler
+            # Use default receiver name from interface when creating handler in main
+            message = MessageHandler("").deserialize(data)
+            print(f"Receiver got (binary): {message} ({addr[0]}:{addr[1]})")
+        else:
+            message = json.loads(data.decode("utf-8"))
+            print(f"Receiver got (json): {message} ({addr[0]}:{addr[1]})")
 
 
 def main():
