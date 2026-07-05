@@ -1,0 +1,14 @@
+# Generated message handler
+class {{ class_name }}:
+    def __init__(self, name):
+        self.name = name
+
+    def send(self, payload, receiver="{{ default_receiver }}"):
+        return {
+            "sender": self.name,
+            "receiver": receiver,
+            "payload": payload,
+        }
+
+    def receive(self, message):
+        return f"{self.name} received: {message['payload']} from {message['sender']}"

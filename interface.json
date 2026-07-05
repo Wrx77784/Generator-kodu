@@ -1,0 +1,8 @@
+{
+  "defaultSender": "sender",
+  "defaultReceiver": "receiver",
+  "messageStore": "messages.jsonl",
+  "topic": "basic-message-bus",
+  "host": "127.0.0.1",
+  "port": 5001
+}
